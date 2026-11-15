@@ -1,0 +1,45 @@
+model User {
+  id             String       @id @default(uuid(7))
+  name           String       @db.VarChar(100)
+  email          String       @unique
+  password       String? // null for Google-only accounts
+  googleId       String?      @unique
+  authProvider   AuthProvider @default(CREDENTIALS)
+  phone          String?      @db.VarChar(20)
+  gender         Gender?
+  avatarUrl      String?
+  avatarPublicId String?
+  role           Role         @default(TENANT)
+  status         UserStatus   @default(ACTIVE)
+  tokenVersion   Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  refreshTokens      RefreshToken[]
+  properties         Property[]     @relation("PropertyOwner")
+  reviewedProperties Property[]     @relation("PropertyReviewer")
+  applications       Application[]
+  tenancies          Tenancy[]
+  payments           Payment[]
+  auditLogs          AuditLog[]
+
+  @@index([role, status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid(7))
+  userId     String
+  tokenHash  String    @unique // sha256 of the token; the token itself is never stored
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  replacedBy String? // id of the token issued when this one was rotated
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
