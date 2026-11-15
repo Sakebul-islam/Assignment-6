@@ -1,0 +1,79 @@
+enum Role {
+  TENANT
+  OWNER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum AuthProvider {
+  CREDENTIALS
+  GOOGLE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum PropertyStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum Amenity {
+  WIFI
+  LIFT
+  GENERATOR
+  PARKING
+  AC
+  GAS
+  SECURITY
+  CCTV
+  KITCHEN
+  WASHING_MACHINE
+}
+
+enum RoomType {
+  SINGLE
+  SHARED
+  MASTER
+}
+
+enum GenderPreference {
+  MALE
+  FEMALE
+  ANY
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+  EXPIRED
+  CONVERTED
+}
+
+enum TenancyStatus {
+  ACTIVE
+  NOTICE_GIVEN
+  ENDED
+}
+
+enum PaymentPurpose {
+  MOVE_IN
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}

@@ -1,0 +1,12 @@
+// RoomMate Hub - Prisma schema (split into one file per model group, like the PH Healthcare backend)
+// Database rules that Prisma cannot express (CHECK constraints, partial unique indexes)
+// live in the "db_rules" migration.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
