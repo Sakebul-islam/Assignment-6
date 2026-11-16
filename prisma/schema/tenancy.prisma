@@ -1,0 +1,24 @@
+model Tenancy {
+  id            String        @id @default(uuid(7))
+  applicationId String        @unique
+  roomId        String
+  tenantId      String
+  startDate     DateTime      @db.Date
+  endDate       DateTime?     @db.Date
+  noticeDate    DateTime?
+  monthlyRent   Decimal       @db.Decimal(10, 2) // copied from the locked quote
+  deposit       Decimal       @db.Decimal(10, 2)
+  status        TenancyStatus @default(ACTIVE)
+  endedById     String?
+  endReason     String?       @db.VarChar(300)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  room        Room        @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  tenant      User        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([roomId, status])
+  @@index([tenantId, status])
+  @@map("tenancies")
+}
