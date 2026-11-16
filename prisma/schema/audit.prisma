@@ -1,0 +1,19 @@
+model AuditLog {
+  id        String   @id @default(uuid(7))
+  actorId   String? // null = system (Stripe webhook, automatic expiry)
+  action    String   @db.VarChar(60)
+  entity    String   @db.VarChar(40)
+  entityId  String
+  before    Json?
+  after     Json?
+  ip        String?  @db.VarChar(45)
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
