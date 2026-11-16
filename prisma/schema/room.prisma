@@ -1,0 +1,42 @@
+model Room {
+  id               String           @id @default(uuid(7))
+  propertyId       String
+  title            String           @db.VarChar(120)
+  roomType         RoomType
+  monthlyRent      Decimal          @db.Decimal(10, 2)
+  deposit          Decimal          @db.Decimal(10, 2)
+  capacity         Int
+  occupiedSeats    Int              @default(0)
+  reservedSeats    Int              @default(0)
+  availableSeats   Int // set to capacity on create; occupied + reserved + available = capacity
+  genderPreference GenderPreference @default(ANY)
+  availableFrom    DateTime         @db.Date
+  deletedAt        DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  images       RoomImage[]
+  applications Application[]
+  tenancies    Tenancy[]
+
+  @@index([propertyId])
+  @@index([monthlyRent])
+  @@index([availableFrom])
+  @@index([availableSeats])
+  @@map("rooms")
+}
+
+model RoomImage {
+  id        String   @id @default(uuid(7))
+  roomId    String
+  url       String
+  publicId  String
+  createdAt DateTime  @default(now())
+  deletedAt DateTime? // soft delete: removed images keep their row (and Cloudinary file)
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@map("room_images")
+}
