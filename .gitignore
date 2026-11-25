@@ -38,6 +38,30 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # deployment
 .vercel
 
-# Local tool files (Command Code CLI)
+# AI assistant and agent tool files (never commit)
 cmdc
 .commandcode/
+.claude/
+.cursor/
+.agents/
+.agent/
+.windsurf/
+.codex/
+.gemini/
+.continue/
+.kiro/
+.opencode/
+.junie/
+.mimocode/
+.aider*
+.cline*
+.roo*
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.cursorrules
+.windsurfrules
+.clinerules
+skills-lock.json
+.mcp.json
+.github/copilot-instructions.md
