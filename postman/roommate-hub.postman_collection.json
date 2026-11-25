@@ -1,0 +1,3944 @@
+{
+	"info": {
+		"name": "RoomMate Hub API",
+		"description": "Housing & Roommate Platform API. Phase 1: 42 endpoints.\n\nEvery response uses { success, statusCode, message, data | errors }. Protected routes need `Authorization: Bearer <accessToken>`.\n\nRun everything with `bun run test:api` (local) or `bun run test:api:prod` (live). Passwords come from your .env and are never stored in this file.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"event": [
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"pm.test(\"No server error (< 500)\", () => pm.expect(pm.response.code).to.be.below(500));",
+					"pm.test(\"Standard envelope\", () => {",
+					"\tconst body = pm.response.json();",
+					"\tpm.expect(body).to.have.property(\"success\");",
+					"\tpm.expect(body).to.have.property(\"message\");",
+					"\tif (body.success) pm.expect(body).to.have.property(\"data\");",
+					"\telse pm.expect(body.errors).to.be.an(\"array\");",
+					"});"
+				]
+			}
+		}
+	],
+	"item": [
+		{
+			"name": "00 Setup",
+			"description": "Logs in the seeded demo accounts and prepares run values.",
+			"item": [
+				{
+					"name": "E17 Health check (public room list)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/rooms?limit=1"
+					},
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.environment.set(\"runId\", String(Date.now()));",
+									"const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);",
+									"pm.environment.set(\"tomorrow\", day(1));",
+									"pm.environment.set(\"moveInDate\", day(5));",
+									"pm.environment.set(\"tooLateMoveIn\", day(90));",
+									"pm.environment.set(\"noticeTooSoon\", day(10));",
+									"pm.environment.set(\"noticeDate\", day(45));",
+									"pm.environment.set(\"yesterday\", day(-2));"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E02 Login admin (seed)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/login",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"if (pm.response.code < 300) pm.environment.set(\"adminToken\", pm.response.json().data.accessToken);",
+									"if (pm.response.code < 300) pm.environment.set(\"adminId\", pm.response.json().data.user.id);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E02 Login owner (seed)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/login",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{demoPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"if (pm.response.code < 300) pm.environment.set(\"ownerToken\", pm.response.json().data.accessToken);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E02 Login tenant (seed)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/login",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{tenantEmail}}\",\n  \"password\": \"{{demoPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"if (pm.response.code < 300) pm.environment.set(\"tenantToken\", pm.response.json().data.accessToken);"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "01 Auth",
+			"description": "E01–E06: register, login, Google, refresh rotation, logout.",
+			"item": [
+				{
+					"name": "E01 Register owner",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/register",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Flow Owner\",\n  \"email\": \"owner.{{runId}}@example.com\",\n  \"password\": \"Strong#Pass1\",\n  \"role\": \"OWNER\",\n  \"phone\": \"01712345678\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"pm.test(\"Message: User Registered Successfully\", () => pm.expect(pm.response.json().message).to.eql(\"User Registered Successfully\"));",
+									"if (pm.response.code < 300) pm.environment.set(\"newOwnerToken\", pm.response.json().data.accessToken);",
+									"if (pm.response.code < 300) pm.environment.set(\"newOwnerId\", pm.response.json().data.user.id);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E01 Register tenant",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/register",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Flow Tenant\",\n  \"email\": \"tenant.{{runId}}@example.com\",\n  \"password\": \"Strong#Pass1\",\n  \"gender\": \"MALE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"pm.test(\"Role is TENANT\", () => pm.expect(pm.response.json().data.user.role === \"TENANT\").to.be.true);",
+									"pm.test(\"Password is never returned\", () => pm.expect(!(\"password\" in pm.response.json().data.user)).to.be.true);",
+									"if (pm.response.code < 300) pm.environment.set(\"newTenantToken\", pm.response.json().data.accessToken);",
+									"if (pm.response.code < 300) pm.environment.set(\"newTenantRefresh\", pm.response.json().data.refreshToken);",
+									"if (pm.response.code < 300) pm.environment.set(\"newTenantId\", pm.response.json().data.user.id);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E01 Register second tenant",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/register",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Flow Tenant Two\",\n  \"email\": \"tenant2.{{runId}}@example.com\",\n  \"password\": \"Strong#Pass1\",\n  \"gender\": \"FEMALE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"if (pm.response.code < 300) pm.environment.set(\"newTenant2Token\", pm.response.json().data.accessToken);",
+									"if (pm.response.code < 300) pm.environment.set(\"newTenant2Id\", pm.response.json().data.user.id);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E01 Register duplicate email (other case) → 409",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/register",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Dup\",\n  \"email\": \"TENANT.{{runId}}@EXAMPLE.com\",\n  \"password\": \"Strong#Pass1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+									"pm.test(\"Message: Email Already Registered\", () => pm.expect(pm.response.json().message).to.eql(\"Email Already Registered\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E01 Register invalid → 400",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/register",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"A\",\n  \"email\": \"not-an-email\",\n  \"password\": \"weak\",\n  \"role\": \"ADMIN\",\n  \"status\": \"ACTIVE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"Message: Validation Failed\", () => pm.expect(pm.response.json().message).to.eql(\"Validation Failed\"));",
+									"pm.test(\"Lists every problem\", () => pm.expect(pm.response.json().errors.length >= 4).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E02 Login wrong password → 401",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/login",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"tenant.{{runId}}@example.com\",\n  \"password\": \"Wrong#Pass1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"Message: Invalid Email Or Password\", () => pm.expect(pm.response.json().message).to.eql(\"Invalid Email Or Password\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E02 Login unknown email → 401 (same message)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/login",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"nobody.{{runId}}@example.com\",\n  \"password\": \"Strong#Pass1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"Message: Invalid Email Or Password\", () => pm.expect(pm.response.json().message).to.eql(\"Invalid Email Or Password\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E04 Refresh token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/refresh-token",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{newTenantRefresh}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"if (pm.response.code < 300) pm.environment.set(\"rotatedRefresh\", pm.response.json().data.refreshToken);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E04 Reuse old refresh token → 401 (all sessions revoked)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/refresh-token",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{newTenantRefresh}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"Message: Refresh Token Reuse Detected, Please Log In Again\", () => pm.expect(pm.response.json().message).to.eql(\"Refresh Token Reuse Detected, Please Log In Again\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E04 Rotated token is revoked too → 401",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/refresh-token",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{rotatedRefresh}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 401\", () => pm.response.to.have.status(401));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E02 Login tenant again",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/login",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"tenant.{{runId}}@example.com\",\n  \"password\": \"Strong#Pass1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Message: Logged In Successfully\", () => pm.expect(pm.response.json().message).to.eql(\"Logged In Successfully\"));",
+									"if (pm.response.code < 300) pm.environment.set(\"newTenantToken\", pm.response.json().data.accessToken);",
+									"if (pm.response.code < 300) pm.environment.set(\"logoutRefresh\", pm.response.json().data.refreshToken);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E05 Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/logout",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{logoutRefresh}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Message: Logged Out Successfully\", () => pm.expect(pm.response.json().message).to.eql(\"Logged Out Successfully\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E05 Logout again (idempotent)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/logout",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{logoutRefresh}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E02 Login tenant (fresh session)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/login",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"tenant.{{runId}}@example.com\",\n  \"password\": \"Strong#Pass1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"if (pm.response.code < 300) pm.environment.set(\"newTenantToken\", pm.response.json().data.accessToken);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E03 Google login with invalid token → 401",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/google",
+						"description": "For a real Google login, get an id_token from the Google OAuth Playground (see README) and send { \"idToken\": \"...\", \"role\": \"TENANT\" }.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"idToken\": \"invalid-google-id-token-0123456789abcdef\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"Message: Invalid Google Token\", () => pm.expect(pm.response.json().message).to.eql(\"Invalid Google Token\"));"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "02 Users",
+			"description": "E07–E09: profile.",
+			"item": [
+				{
+					"name": "E07 Get my profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/users/me"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Own profile\", () => pm.expect(pm.response.json().data.id === pm.environment.get(\"newTenantId\")).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E08 Update profile",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/users/me",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"01898765432\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Message: Profile Updated Successfully\", () => pm.expect(pm.response.json().message).to.eql(\"Profile Updated Successfully\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E08 Empty update → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/users/me",
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E08 Change role through profile → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/users/me",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"role\": \"ADMIN\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E09 Avatar without file → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/users/me/avatar",
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"Message: Avatar Image Is Required\", () => pm.expect(pm.response.json().message).to.eql(\"Avatar Image Is Required\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E09 Avatar with an extra field → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/users/me/avatar",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "note",
+									"value": "only the avatar file is accepted",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"Message: Validation Failed\", () => pm.expect(pm.response.json().message).to.eql(\"Validation Failed\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E07 No token → 401",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/users/me"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"Message: You Are Not Logged In\", () => pm.expect(pm.response.json().message).to.eql(\"You Are Not Logged In\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E07 Tampered token → 401",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tamperedToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/users/me"
+					},
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.environment.set(\"tamperedToken\", \"abc.def.ghi\");"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"Message: Invalid Or Expired Token\", () => pm.expect(pm.response.json().message).to.eql(\"Invalid Or Expired Token\"));"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "03 Properties",
+			"description": "E10–E15 and E39–E40: listings, admin review, soft delete.",
+			"item": [
+				{
+					"name": "E10 Create property (PENDING)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties",
+						"description": "multipart/form-data: JSON in the `data` field, up to 8 image files in `images`.",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"title\":\"Flow House {{runId}}\",\"description\":\"A quiet test house near the university with good transport links.\",\"city\":\"Dhaka\",\"area\":\"Farmgate\",\"address\":\"Road 1, Farmgate\",\"amenities\":[\"WIFI\",\"LIFT\"]}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"pm.test(\"Status PENDING\", () => pm.expect(pm.response.json().data.status === \"PENDING\").to.be.true);",
+									"if (pm.response.code < 300) pm.environment.set(\"propertyId\", pm.response.json().data.id);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E10 Tenant creates property → 403",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"title\":\"Flow House {{runId}}\",\"description\":\"A quiet test house near the university with good transport links.\",\"city\":\"Dhaka\",\"area\":\"Farmgate\",\"address\":\"Road 1, Farmgate\",\"amenities\":[\"WIFI\",\"LIFT\"]}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+									"pm.test(\"Message: You Do Not Have Permission To Access This Resource\", () => pm.expect(pm.response.json().message).to.eql(\"You Do Not Have Permission To Access This Resource\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E10 Invalid amenity → 400",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"title\":\"Flow House {{runId}}\",\"description\":\"A quiet test house near the university with good transport links.\",\"city\":\"Dhaka\",\"area\":\"Farmgate\",\"address\":\"Road 1, Farmgate\",\"amenities\":[\"POOL\"]}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E10 Data field is not JSON → 400",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{bad json",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E13 Public view of PENDING property → 404",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/properties/{{propertyId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+									"pm.test(\"Message: Property Not Found\", () => pm.expect(pm.response.json().message).to.eql(\"Property Not Found\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E13 Owner views own PENDING property",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/{{propertyId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Owner sees status\", () => pm.expect(pm.response.json().data.status === \"PENDING\").to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E12 My properties",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/mine?status=PENDING"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Contains the new property\", () => pm.expect(pm.response.json().data.some((p) => p.id === pm.environment.get(\"propertyId\"))).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E39 Admin review queue",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/admin/properties?searchTerm={{runId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"One pending property\", () => pm.expect(pm.response.json().meta.total === 1).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E40 Reject without reason → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/admin/properties/{{propertyId}}/verify",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"decision\": \"REJECT\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E40 Approve property",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/admin/properties/{{propertyId}}/verify",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"decision\": \"APPROVE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Message: Property Approved Successfully\", () => pm.expect(pm.response.json().message).to.eql(\"Property Approved Successfully\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E40 Approve again → 409",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/admin/properties/{{propertyId}}/verify",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"decision\": \"APPROVE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+									"pm.test(\"Message: Only Pending Properties Can Be Reviewed\", () => pm.expect(pm.response.json().message).to.eql(\"Only Pending Properties Can Be Reviewed\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E13 Public view of APPROVED property",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/properties/{{propertyId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"No private status for public\", () => pm.expect(!(\"status\" in pm.response.json().data)).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E11 Search, filter, sort, paginate",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/properties?searchTerm={{runId}}&city=Dhaka&amenities=WIFI,LIFT&sortBy=title&sortOrder=asc&page=1&limit=5"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Meta present\", () => pm.expect(pm.response.json().meta.page === 1 && pm.response.json().meta.limit === 5).to.be.true);",
+									"pm.test(\"Found the property\", () => pm.expect(pm.response.json().meta.total === 1).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E11 limit=100 → 400",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/properties?limit=100"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E11 sortBy=password → 400",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/properties?sortBy=password"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E14 Other owner edits → 403",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/{{propertyId}}",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"description\":\"Someone else trying to change this description.\"}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+									"pm.test(\"Message: You Do Not Own This Property\", () => pm.expect(pm.response.json().message).to.eql(\"You Do Not Own This Property\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E14 Edit description (stays APPROVED)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/{{propertyId}}",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"description\":\"Updated description for the flow test house near the university.\"}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Message: Property Updated Successfully\", () => pm.expect(pm.response.json().message).to.eql(\"Property Updated Successfully\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E14 Status in body → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/{{propertyId}}",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"status\":\"APPROVED\"}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "04 Rooms",
+			"description": "E16–E20: rooms with seats, availability search, soft delete.",
+			"item": [
+				{
+					"name": "E16 Create room",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/{{propertyId}}/rooms",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"title\":\"Shared Room {{runId}}\",\"roomType\":\"SHARED\",\"monthlyRent\":6000,\"deposit\":6000,\"capacity\":2,\"genderPreference\":\"ANY\",\"availableFrom\":\"{{tomorrow}}\"}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"pm.test(\"All seats free\", () => pm.expect(pm.response.json().data.availableSeats === 2).to.be.true);",
+									"if (pm.response.code < 300) pm.environment.set(\"roomId\", pm.response.json().data.id);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E16 Create second room (to delete)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/{{propertyId}}/rooms",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"title\":\"Single Room {{runId}}\",\"roomType\":\"SINGLE\",\"monthlyRent\":6000,\"deposit\":6000,\"capacity\":1,\"genderPreference\":\"ANY\",\"availableFrom\":\"{{tomorrow}}\"}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"if (pm.response.code < 300) pm.environment.set(\"room2Id\", pm.response.json().data.id);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E16 SINGLE with capacity 2 → 400",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/{{propertyId}}/rooms",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"title\":\"Shared Room {{runId}}\",\"roomType\":\"SINGLE\",\"monthlyRent\":6000,\"deposit\":6000,\"capacity\":2,\"genderPreference\":\"ANY\",\"availableFrom\":\"{{tomorrow}}\"}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E16 Deposit above 6 months → 400",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/{{propertyId}}/rooms",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"title\":\"Shared Room {{runId}}\",\"roomType\":\"SHARED\",\"monthlyRent\":6000,\"deposit\":50000,\"capacity\":2,\"genderPreference\":\"ANY\",\"availableFrom\":\"{{tomorrow}}\"}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E16 availableFrom in the past → 400",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/{{propertyId}}/rooms",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"title\":\"Shared Room {{runId}}\",\"roomType\":\"SHARED\",\"monthlyRent\":6000,\"deposit\":6000,\"capacity\":2,\"genderPreference\":\"ANY\",\"availableFrom\":\"{{yesterday}}\"}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E16 Tenant creates room → 403",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/{{propertyId}}/rooms",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"title\":\"Shared Room {{runId}}\",\"roomType\":\"SHARED\",\"monthlyRent\":6000,\"deposit\":6000,\"capacity\":2,\"genderPreference\":\"ANY\",\"availableFrom\":\"{{tomorrow}}\"}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E17 Search rooms with filters",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/rooms?propertyId={{propertyId}}&minRent=1000&maxRent=9000&genderPreference=MALE&sortBy=monthlyRent&sortOrder=asc"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"ANY rooms included for MALE\", () => pm.expect(pm.response.json().meta.total === 2).to.be.true);",
+									"pm.test(\"Sorted by rent\", () => pm.expect(pm.response.json().data[0].monthlyRent <= pm.response.json().data[1].monthlyRent).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E17 minRent > maxRent → 400",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/rooms?minRent=9000&maxRent=3000"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E17 Unknown room type → 400",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/rooms?roomType=VILLA"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E17 Unknown query field → 400",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/rooms?hack=1"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E18 Room details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/rooms/{{roomId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Has seat numbers\", () => pm.expect(pm.response.json().data.capacity === 2).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E18 Invalid room id → 400",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/rooms/abc"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E20 Delete empty room (soft delete)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/rooms/{{room2Id}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Message: Room Deleted Successfully\", () => pm.expect(pm.response.json().message).to.eql(\"Room Deleted Successfully\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E18 Deleted room → 404",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/rooms/{{room2Id}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+									"pm.test(\"Message: Room Not Found\", () => pm.expect(pm.response.json().message).to.eql(\"Room Not Found\"));"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "05 Applications",
+			"description": "E21–E25: apply, approve with 48h seat reservation, withdraw.",
+			"item": [
+				{
+					"name": "E21 Tenant applies",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/rooms/{{roomId}}/applications",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"moveInDate\": \"{{moveInDate}}\",\n  \"message\": \"Final-year student, quiet and tidy.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"pm.test(\"PENDING\", () => pm.expect(pm.response.json().data.status === \"PENDING\").to.be.true);",
+									"if (pm.response.code < 300) pm.environment.set(\"applicationId\", pm.response.json().data.id);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E21 Apply again → 409",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/rooms/{{roomId}}/applications",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"moveInDate\": \"{{moveInDate}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+									"pm.test(\"Message: You Already Have An Open Application For This Room\", () => pm.expect(pm.response.json().message).to.eql(\"You Already Have An Open Application For This Room\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E21 Owner applies → 403",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/rooms/{{roomId}}/applications",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"moveInDate\": \"{{moveInDate}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E21 Move-in more than 60 days ahead → 400",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenant2Token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/rooms/{{roomId}}/applications",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"moveInDate\": \"{{tooLateMoveIn}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E21 Second tenant applies",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenant2Token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/rooms/{{roomId}}/applications",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"moveInDate\": \"{{moveInDate}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"if (pm.response.code < 300) pm.environment.set(\"application2Id\", pm.response.json().data.id);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E24 Other owner decides → 403",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/applications/{{applicationId}}/decision",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"decision\": \"APPROVE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+									"pm.test(\"Message: You Do Not Own This Room\", () => pm.expect(pm.response.json().message).to.eql(\"You Do Not Own This Room\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E23 Other tenant reads application → 404",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/applications/{{applicationId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+									"pm.test(\"Message: Application Not Found\", () => pm.expect(pm.response.json().message).to.eql(\"Application Not Found\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E24 Reject without reason → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/applications/{{applicationId}}/decision",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"decision\": \"REJECT\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E24 Approve (seat reserved, price locked)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/applications/{{applicationId}}/decision",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"decision\": \"APPROVE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"APPROVED with reservedUntil\", () => pm.expect(pm.response.json().data.status === \"APPROVED\" && !!pm.response.json().data.reservedUntil).to.be.true);",
+									"pm.test(\"Price locked at 6000\", () => pm.expect(Number(pm.response.json().data.quotedRent) === 6000).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E24 Approve again → 409",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/applications/{{applicationId}}/decision",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"decision\": \"APPROVE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 409\", () => pm.response.to.have.status(409));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E18 Owner sees reserved seat",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/rooms/{{roomId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"1 reserved, 1 free\", () => pm.expect(pm.response.json().data.reservedSeats === 1 && pm.response.json().data.availableSeats === 1).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E22 Tenant lists own applications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/applications?status=APPROVED"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Only own\", () => pm.expect(pm.response.json().data.every((a) => a.tenant.id === pm.environment.get(\"newTenantId\"))).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E22 Owner lists applications to own rooms",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/applications?roomId={{roomId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Two applications\", () => pm.expect(pm.response.json().meta.total === 2).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E19 Owner raises rent after approval",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/rooms/{{roomId}}",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "data",
+									"value": "{\"monthlyRent\":7000}",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E20 Delete room with a reserved seat → 409",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/rooms/{{roomId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+									"pm.test(\"Message: Room Has Tenants Or Reserved Seats\", () => pm.expect(pm.response.json().message).to.eql(\"Room Has Tenants Or Reserved Seats\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E25 Second tenant withdraws",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenant2Token}}"
+							}
+						],
+						"url": "{{baseUrl}}/applications/{{application2Id}}/withdraw"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"WITHDRAWN\", () => pm.expect(pm.response.json().data.status === \"WITHDRAWN\").to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E25 Withdraw again → 409",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenant2Token}}"
+							}
+						],
+						"url": "{{baseUrl}}/applications/{{application2Id}}/withdraw"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 409\", () => pm.response.to.have.status(409));"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "06 Payments",
+			"description": "E26–E31 checks that need no Stripe account.",
+			"item": [
+				{
+					"name": "E27 Webhook without signature → 400",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/payments/webhook",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"checkout.session.completed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"Message: Invalid Stripe Signature\", () => pm.expect(pm.response.json().message).to.eql(\"Invalid Stripe Signature\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E27 Webhook with wrong signature → 400",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/payments/webhook",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"checkout.session.completed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.request.headers.upsert({ key: \"stripe-signature\", value: \"t=1,v1=deadbeef\" });"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E28 Success page for unknown session → 404",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/payments/success?session_id=cs_test_unknown"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+									"pm.test(\"Message: Payment Not Found\", () => pm.expect(pm.response.json().message).to.eql(\"Payment Not Found\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E28 Success page without session_id → 400",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/payments/success"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E29 Cancel unknown session → 404",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/payments/cancel?session_id=cs_test_unknown"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E26 Checkout with an amount → 400",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/payments/checkout",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"amount\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E26 Checkout someone else's application → 404",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/payments/checkout",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"applicationId\": \"{{applicationId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+									"pm.test(\"Message: Application Not Found\", () => pm.expect(pm.response.json().message).to.eql(\"Application Not Found\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E26 Checkout a withdrawn application → 409",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenant2Token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/payments/checkout",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"applicationId\": \"{{application2Id}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+									"pm.test(\"Message: Application Is Not Approved\", () => pm.expect(pm.response.json().message).to.eql(\"Application Is Not Approved\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E26 Owner starts checkout → 403",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/payments/checkout",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"applicationId\": \"{{applicationId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E30 Admin payment list",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/payments?status=PAID&sortBy=amount&sortOrder=desc"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Has meta\", () => pm.expect(pm.response.json().meta.total >= 1).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E31 Other tenant's payment → 404",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/payments/00000000-0000-4000-8000-000000006001"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E31 Admin reads any payment",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/payments/00000000-0000-4000-8000-000000006001"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "07 Stripe checkout and tenancy (needs Stripe test keys)",
+			"description": "Runs only when real Stripe test keys are in .env. Creates a real Checkout Session, then sends a signed checkout.session.completed event (as Stripe would after payment), and continues with the tenancy lifecycle.",
+			"item": [
+				{
+					"name": "E26 Checkout approved application",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/payments/checkout",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"applicationId\": \"{{applicationId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"pm.test(\"Checkout URL\", () => pm.expect(pm.response.json().data.checkoutUrl.startsWith(\"https://\")).to.be.true);",
+									"pm.test(\"Locked amount 12000\", () => pm.expect(Number(pm.response.json().data.amount) === 12000).to.be.true);",
+									"if (pm.response.code < 300) pm.environment.set(\"paymentId\", pm.response.json().data.paymentId);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E26 Checkout again reuses the session",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/payments/checkout",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"applicationId\": \"{{applicationId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Message: Checkout Session Already Open\", () => pm.expect(pm.response.json().message).to.eql(\"Checkout Session Already Open\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E27 Signed webhook: payment completed",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/payments/webhook",
+						"body": {
+							"mode": "raw",
+							"raw": "{{webhookPayload}}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const payload = JSON.stringify({ id: \"evt_test_\" + Date.now(), object: \"event\", type: \"checkout.session.completed\", data: { object: { id: \"cs_test_postman\", object: \"checkout.session\", payment_status: \"paid\", payment_intent: \"pi_test_\" + pm.environment.get(\"paymentId\").replace(/-/g, \"\"), metadata: { paymentId: pm.environment.get(\"paymentId\") } } } });",
+									"const t = Math.floor(Date.now() / 1000);",
+									"const sig = CryptoJS.HmacSHA256(t + \".\" + payload, pm.environment.get(\"stripeWebhookSecret\")).toString(CryptoJS.enc.Hex);",
+									"pm.environment.set(\"webhookPayload\", payload);",
+									"pm.request.headers.upsert({ key: \"stripe-signature\", value: \"t=\" + t + \",v1=\" + sig });"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Message: Webhook Received\", () => pm.expect(pm.response.json().message).to.eql(\"Webhook Received\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E31 Payment is PAID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/payments/{{paymentId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"PAID\", () => pm.expect(pm.response.json().data.status === \"PAID\").to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E32 Tenancy is ACTIVE",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies?status=ACTIVE"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"One tenancy\", () => pm.expect(pm.response.json().meta.total === 1).to.be.true);",
+									"if (pm.response.code < 300) pm.environment.set(\"tenancyId\", pm.response.json().data[0].id);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E33 Tenancy details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies/{{tenancyId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Move-in payment linked\", () => pm.expect(pm.response.json().data.moveInPayment.status === \"PAID\").to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E34 Notice under 30 days → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies/{{tenancyId}}/notice",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"endDate\": \"{{noticeTooSoon}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E34 Give notice",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies/{{tenancyId}}/notice",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"endDate\": \"{{noticeDate}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"NOTICE_GIVEN\", () => pm.expect(pm.response.json().data.status === \"NOTICE_GIVEN\").to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E34 Notice again → 409",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies/{{tenancyId}}/notice",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"endDate\": \"{{noticeDate}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 409\", () => pm.response.to.have.status(409));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E35 Owner ends before start → 403",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies/{{tenancyId}}/end",
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+									"pm.test(\"Message: Only An Admin Can End A Tenancy Before It Starts\", () => pm.expect(pm.response.json().message).to.eql(\"Only An Admin Can End A Tenancy Before It Starts\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E15 Delete property with a tenant → 409",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/properties/{{propertyId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+									"pm.test(\"Message: Property Has Tenants Or Reserved Seats\", () => pm.expect(pm.response.json().message).to.eql(\"Property Has Tenants Or Reserved Seats\"));"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "08 Tenancies",
+			"description": "E32–E35 checks on the seeded tenancies (read-only or refused).",
+			"item": [
+				{
+					"name": "E32 Owner lists tenancies in own rooms",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies?sortBy=startDate&sortOrder=asc"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Has tenancies\", () => pm.expect(pm.response.json().meta.total >= 1).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E33 Admin reads a seeded tenancy",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies/00000000-0000-4000-8000-000000005001"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E33 Another tenant reads it → 404",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies/00000000-0000-4000-8000-000000005001"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+									"pm.test(\"Message: Tenancy Not Found\", () => pm.expect(pm.response.json().message).to.eql(\"Tenancy Not Found\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E34 Notice on someone else's tenancy → 404",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies/00000000-0000-4000-8000-000000005001/notice",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"endDate\": \"{{noticeDate}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E35 Tenant tries to end → 403",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies/00000000-0000-4000-8000-000000005001/end",
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E35 End date in the future → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/tenancies/00000000-0000-4000-8000-000000005001/end",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"endDate\": \"{{noticeDate}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "09 Admin",
+			"description": "E36–E42: users, roles, blocking, stats, audit logs.",
+			"item": [
+				{
+					"name": "E36 Search users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/admin/users?searchTerm={{runId}}&role=TENANT&sortBy=name&sortOrder=asc"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Two new tenants\", () => pm.expect(pm.response.json().meta.total === 2).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E36 Owner calls admin route → 403",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newOwnerToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/admin/users"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E38 Owner with properties → TENANT → 409",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/admin/users/{{newOwnerId}}/role",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"role\": \"TENANT\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+									"pm.test(\"Message: User Still Owns Properties\", () => pm.expect(pm.response.json().message).to.eql(\"User Still Owns Properties\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E38 Role ADMIN → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/admin/users/{{newOwnerId}}/role",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"role\": \"ADMIN\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E37 Block tenant",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/admin/users/{{newTenant2Id}}/status",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"BLOCKED\",\n  \"reason\": \"Test\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Message: User Blocked Successfully\", () => pm.expect(pm.response.json().message).to.eql(\"User Blocked Successfully\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E07 Blocked user's token → 403 immediately",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenant2Token}}"
+							}
+						],
+						"url": "{{baseUrl}}/users/me"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+									"pm.test(\"Message: Your Account Is Blocked\", () => pm.expect(pm.response.json().message).to.eql(\"Your Account Is Blocked\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E02 Blocked user login → 403",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/login",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"tenant2.{{runId}}@example.com\",\n  \"password\": \"Strong#Pass1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E37 Unblock tenant",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/admin/users/{{newTenant2Id}}/status",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"ACTIVE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Message: User Unblocked Successfully\", () => pm.expect(pm.response.json().message).to.eql(\"User Unblocked Successfully\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E07 Old token after unblock → 401",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenant2Token}}"
+							}
+						],
+						"url": "{{baseUrl}}/users/me"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"Message: Session Expired, Please Log In Again\", () => pm.expect(pm.response.json().message).to.eql(\"Session Expired, Please Log In Again\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E37 Admin blocks self → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/admin/users/{{adminId}}/status",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"BLOCKED\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E41 Dashboard stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/admin/dashboard-stats"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Occupancy present\", () => pm.expect(typeof pm.response.json().data.rooms.occupancyRate === \"number\").to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E42 Audit log of the application",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/admin/audit-logs?entity=Application&searchTerm={{applicationId}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Created and approved are logged\", () => pm.expect(pm.response.json().data.map((l) => l.action).includes(\"APPLICATION_APPROVED\") && pm.response.json().data.map((l) => l.action).includes(\"APPLICATION_CREATED\")).to.be.true);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E42 from after to → 400",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/admin/audit-logs?from=2026-12-01&to=2026-11-01"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "10 Negative and session",
+			"description": "Unknown route, malformed JSON, password change ends sessions.",
+			"item": [
+				{
+					"name": "Unknown route → 404",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/does-not-exist"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+									"pm.test(\"Message: Route Not Found\", () => pm.expect(pm.response.json().message).to.eql(\"Route Not Found\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E02 Malformed JSON → 400",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/login",
+						"body": {
+							"mode": "raw",
+							"raw": "{bad json",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"Message: Malformed JSON Body\", () => pm.expect(pm.response.json().message).to.eql(\"Malformed JSON Body\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E06 Wrong current password → 400",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/change-password",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currentPassword\": \"Wrong#Pass1\",\n  \"newPassword\": \"Newer#Pass2\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"Message: Current Password Is Incorrect\", () => pm.expect(pm.response.json().message).to.eql(\"Current Password Is Incorrect\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E06 Change password",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/auth/change-password",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currentPassword\": \"Strong#Pass1\",\n  \"newPassword\": \"Newer#Pass2\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+									"if (pm.response.code < 300) pm.environment.set(\"passwordChangedToken\", pm.response.json().data.accessToken);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E07 Old token after password change → 401",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{newTenantToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/users/me"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"Message: Session Expired, Please Log In Again\", () => pm.expect(pm.response.json().message).to.eql(\"Session Expired, Please Log In Again\"));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "E07 New token works",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{passwordChangedToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/users/me"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	]
+}
