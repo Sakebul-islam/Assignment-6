@@ -11,9 +11,10 @@ Node.js · TypeScript · Express · PostgreSQL · Prisma · Stripe · Redis
 
 | | |
 |---|---|
-| **API Docs (Postman)** | `<https://documenter.getpostman.com/view/xyz>` |
-| **Demo Video** | `<https://drive.google.com/file/d/xyz/view>` |
-| **Backend Repo** | `<https://github.com/your-username/roommate-hub-backend>` |
+| **Live API** | https://roommate-hub-backend.vercel.app/ |
+| **API Docs (Postman)** | https://documenter.getpostman.com/view/43098158/2sBYPwWWtg |
+| **Backend Repo** | https://github.com/Sakebul-islam/Assignment-6 |
+| **Demo Video** | https://drive.google.com/file/d/1cbYibWFypX5ryCsZ9Olc3gbBGmL8ESy9/view?usp=sharing |
 
 ### Demo credentials (evaluation only)
 
@@ -328,9 +329,9 @@ The last five factors are averaged over the room's current occupants. An empty r
 
 ## 📚 API reference
 
-**Base URL:** `http://localhost:5000/api/v1`
+**Base URL:** `https://roommate-hub-backend.vercel.app/api/v1` (live) · `http://localhost:5000/api/v1` (local)
 **Auth header:** `Authorization: Bearer <accessToken>`
-Full request and response examples are in the [Postman documentation](<postman-link>).
+Full request and response examples are in the [Postman documentation](https://documenter.getpostman.com/view/43098158/2sBYPwWWtg).
 
 The API is built in three phases. **Phase 1 is everything the assignment requires** and is complete on its own. Phase 2 adds the features the Idea Hub lists for project #6, and Phase 3 adds optional email features. Each phase only adds endpoints; nothing in an earlier phase changes.
 
@@ -620,8 +621,8 @@ The Postman collection and environments are in [`postman/`](postman). `bun run t
 ### Installation
 
 ```bash
-git clone <https://github.com/your-username/roommate-hub-backend.git>
-cd roommate-hub-backend
+git clone https://github.com/Sakebul-islam/Assignment-6.git
+cd Assignment-6
 bun install
 cp .env.example .env            # fill in your own values
 bunx prisma migrate dev
@@ -743,4 +744,4 @@ Each module folder contains `<feature>.route.ts` (`<Feature>Routes`), `<feature>
 
 ## 👤 Author
 
-**<Sakebul islam>** Sakebul islam --> Student ID: L2B7-0336 · `https://github.com/sakebul-islam/`
+**Sakebul islam** · Student ID: L2B7-0336 · https://github.com/Sakebul-islam
