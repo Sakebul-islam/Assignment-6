@@ -1,3 +1,5 @@
+/// <reference path="./express.d.ts" />
+
 export type TErrorItem = {
 	path: string;
 	message: string;
