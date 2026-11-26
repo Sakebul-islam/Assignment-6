@@ -1,4 +1,4 @@
-// Runs the Postman collection with newman (PROJECT_PLAN.md Part 19).
+// Runs the Postman collection with newman.
 // Passwords and the webhook secret are read from .env and passed in memory, never written to a file.
 //
 // Usage: bun run test:api          → local environment

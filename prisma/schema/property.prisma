@@ -33,7 +33,7 @@ model PropertyImage {
   url        String
   publicId   String
   createdAt  DateTime  @default(now())
-  deletedAt  DateTime? // soft delete: removed images keep their row (and Cloudinary file)
+  deletedAt  DateTime? // soft delete
 
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 

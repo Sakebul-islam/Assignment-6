@@ -11,8 +11,8 @@ type TSchemas = {
 	params?: ZodType;
 };
 
-// Validates body, query and params, and returns every problem at once in `errors`.
-// Parsed values go to req.validated (in Express 5, req.query cannot be replaced).
+// Validates body, query and params and returns every issue at once.
+// Parsed values go on req.validated because req.query is read-only in Express 5.
 export const validateRequest = (schemas: TSchemas) => {
 	return catchAsync(async (req: Request, res: Response, next: NextFunction) => {
 		const errors: TErrorItem[] = [];

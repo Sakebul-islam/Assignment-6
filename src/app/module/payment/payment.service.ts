@@ -58,14 +58,11 @@ const toPaymentView = (payment: TPaymentView) => {
 	};
 };
 
-// ───────────────────────── E26 checkout ─────────────────────────
-
 const cancelPendingPayment = async (payment: { id: string; stripeSessionId: string | null }) => {
 	await prisma.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "CANCELLED" } });
 	if (payment.stripeSessionId) await stripeSessionUtils.expireMany([payment.stripeSessionId]);
 };
 
-// BR-31, BR-33 to BR-35 (PROJECT_PLAN.md §10.3)
 const createCheckout = async (user: RequestUser, payload: ICheckoutPayload) => {
 	const { applicationId } = payload;
 	await expiryUtils.expireNow({ applicationId });
@@ -83,7 +80,7 @@ const createCheckout = async (user: RequestUser, payload: ICheckoutPayload) => {
 		throw new AppError(httpStatus.CONFLICT, "Application Is Not Approved");
 	}
 
-	// BR-35: an open session younger than 25 minutes is returned again
+	// reuse an open session if it's less than 25 minutes old
 	const open = await prisma.payment.findFirst({ where: { applicationId, status: "PENDING" } });
 	if (open?.checkoutUrl && Date.now() - open.createdAt.getTime() < REUSE_SESSION_MS) {
 		return { reused: true, payment: open };
@@ -92,7 +89,7 @@ const createCheckout = async (user: RequestUser, payload: ICheckoutPayload) => {
 
 	const amount = application.quotedDeposit.plus(application.quotedRent);
 
-	// The payment row is created first, so nothing is lost if Stripe fails
+	// create the payment row first so nothing is lost if Stripe fails
 	const payment = await prisma.payment
 		.create({
 			data: { userId: user.userId, purpose: "MOVE_IN", applicationId, amount, currency: config.stripe_currency },
@@ -151,11 +148,9 @@ const createCheckout = async (user: RequestUser, payload: ICheckoutPayload) => {
 	}
 };
 
-// ───────────────────────── E27 webhook ─────────────────────────
-
 class RefundNeeded extends Error {}
 
-// BR-38: refunds money that arrived but cannot be used (lost seat, withdrawn, duplicate payment)
+// Refunds money we can't use (seat gone, application withdrawn, duplicate payment)
 const refundPayment = async (paymentId: string, intentId: string, reason: string) => {
 	await stripe.refunds.create({ payment_intent: intentId }, { idempotencyKey: `refund-${paymentId}` });
 
@@ -228,12 +223,12 @@ const withdrawOtherOpenApplications = async (tx: Prisma.TransactionClient, tenan
 	return { roomIds, sessionIds };
 };
 
-// Every step is a guarded claim, so duplicate or simultaneous deliveries are harmless (PROJECT_PLAN.md §10.4)
+// Every step is a guarded claim, so duplicate or parallel webhook deliveries are harmless
 const onMoveInPaid = async (paymentId: string, intentId: string) => {
 	try {
 		const outcome = await prisma.$transaction(async (tx) => {
-			// 1. Claim the payment first. A duplicate delivery of the same event waits on this row,
-			//    then finds it PAID and stops (BR-37). If anything below fails, this is rolled back.
+			// Claim the payment first. A duplicate delivery waits on this row, sees PAID and stops.
+			// If anything below fails, this gets rolled back too.
 			const paid = await tx.payment.updateMany({
 				where: { id: paymentId, status: { in: ["PENDING", "CANCELLED", "FAILED"] } },
 				data: { status: "PAID", paidAt: new Date(), stripePaymentIntentId: intentId, failureReason: null },
@@ -362,8 +357,6 @@ const handleWebhook = async (rawBody: unknown, signature: string | undefined) =>
 	return { received: true };
 };
 
-// ───────────────────────── E28, E29 redirects ─────────────────────────
-
 const findBySession = async (sessionId: string) => {
 	const payment = await prisma.payment.findUnique({
 		where: { stripeSessionId: sessionId },
@@ -373,13 +366,11 @@ const findBySession = async (sessionId: string) => {
 	return payment;
 };
 
-// BR-40: read only
 const getCheckoutResult = async (sessionId: string) => {
 	const payment = await findBySession(sessionId);
 	return { paymentId: payment.id, status: payment.status, purpose: payment.purpose };
 };
 
-// BR-39
 const cancelCheckout = async (sessionId: string) => {
 	const payment = await findBySession(sessionId);
 
@@ -408,8 +399,6 @@ const cancelCheckout = async (sessionId: string) => {
 	const current = await findBySession(sessionId);
 	return { paymentId: current.id, status: current.status };
 };
-
-// ───────────────────────── E30, E31 history ─────────────────────────
 
 const scopeFor = (user: RequestUser): Prisma.PaymentWhereInput =>
 	user.role === "TENANT"

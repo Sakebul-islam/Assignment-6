@@ -9,7 +9,7 @@ export default defineConfig({
 	bundle: true,
 	splitting: false,
 	sourcemap: true,
-	// Shim require() for CommonJS dependencies inside the ESM bundle (assignment deployment guide)
+	// require() shim for CommonJS deps inside the ESM bundle
 	banner: {
 		js: `
       import { createRequire } from 'module';

@@ -31,7 +31,7 @@ model User {
 model RefreshToken {
   id         String    @id @default(uuid(7))
   userId     String
-  tokenHash  String    @unique // sha256 of the token; the token itself is never stored
+  tokenHash  String    @unique // only the sha256 hash is stored
   expiresAt  DateTime
   revokedAt  DateTime?
   replacedBy String? // id of the token issued when this one was rotated

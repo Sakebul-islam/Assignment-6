@@ -16,7 +16,6 @@ import {
 
 const router = Router();
 
-// Every admin route requires the ADMIN role
 router.use(auth(Role.ADMIN));
 
 router.get("/users", validateRequest({ query: AdminUserListQueryValidationZodSchema }), AdminController.getUsers);

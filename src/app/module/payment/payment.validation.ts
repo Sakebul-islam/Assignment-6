@@ -2,7 +2,7 @@ import { z } from "zod";
 import { dateOnlyField, uuidField } from "../../utils/commonValidation";
 import { queryBuilder } from "../../utils/queryBuilder";
 
-// BR-33: the amount is never sent by the client; it is calculated on the server
+// the amount is calculated on the server, never taken from the client
 export const CheckoutValidationZodSchema = z.object({ applicationId: uuidField("Application Id") }).strict();
 
 export const StripeSessionQueryValidationZodSchema = z

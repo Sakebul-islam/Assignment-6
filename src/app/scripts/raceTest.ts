@@ -1,4 +1,4 @@
-// Concurrency tests (PROJECT_PLAN.md §19.5). Needs the API running (bun run dev) and the seed data.
+// Concurrency tests. Needs the API running (bun run dev) and the seed data.
 // Run with: bun run test:race      (API_BASE_URL defaults to http://localhost:5000/api/v1)
 import config from "../config";
 

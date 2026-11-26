@@ -17,7 +17,7 @@ const IMAGE_FOLDER = "roommate-hub/rooms";
 
 type TRoomDetail = Prisma.RoomGetPayload<{ select: typeof roomDetailSelect }>;
 
-// RoomDetail shape (PROJECT_PLAN.md §8.1); listing status only for the owner and admins
+// listing status is only returned to the owner and admins
 const toRoomDetail = (room: TRoomDetail, includePrivate: boolean) => {
 	const { status, ownerId, deletedAt, ...property } = room.property;
 	return {
@@ -32,7 +32,6 @@ const isPublicRoom = (room: TRoomDetail) => room.property.status === "APPROVED" 
 const loadRoomDetail = (roomId: string) =>
 	prisma.room.findFirst({ where: { id: roomId, deletedAt: null }, select: roomDetailSelect });
 
-// E16 — BR-15, BR-16, BR-18, BR-21
 const createRoom = async (
 	user: RequestUser,
 	propertyId: string,
@@ -86,7 +85,6 @@ const createRoom = async (
 	}
 };
 
-// E17
 const getAllRooms = async (query: IRoomListQuery) => {
 	const cacheKey = await cacheUtils.listingsKey("rooms", query);
 
@@ -140,7 +138,7 @@ const getAllRooms = async (query: IRoomListQuery) => {
 	});
 };
 
-// E18 — BR-31: expired reservations of this room are released before it is shown
+// release expired reservations first so the seat counts are current
 const getRoomById = async (roomId: string, user?: RequestUser) => {
 	await expiryUtils.expireNow({ roomId });
 
@@ -161,7 +159,6 @@ const getRoomById = async (roomId: string, user?: RequestUser) => {
 	return toRoomDetail(room, Boolean(canSeePrivate));
 };
 
-// E19 — BR-16 to BR-19, BR-21
 const updateRoom = async (
 	user: RequestUser,
 	roomId: string,
@@ -209,7 +206,7 @@ const updateRoom = async (
 				throw new AppError(httpStatus.BAD_REQUEST, `A Room Can Have At Most ${MAX_IMAGES} Images`);
 			}
 
-			// BR-17: guarded capacity change; available seats move by the same amount
+			// guarded capacity change, available seats move by the same amount
 			const delta = nextCapacity - room.capacity;
 			if (delta !== 0) {
 				const changed = await tx.room.updateMany({
@@ -228,7 +225,7 @@ const updateRoom = async (
 				}
 			}
 
-			// Soft delete: the row and the Cloudinary file stay, only hidden from every response
+			// soft delete, the Cloudinary file is kept
 			if (toRemove.length) {
 				await tx.roomImage.updateMany({
 					where: { id: { in: toRemove.map((image) => image.id) }, deletedAt: null },
@@ -274,7 +271,6 @@ const updateRoom = async (
 	}
 };
 
-// E20 — BR-20
 const deleteRoom = async (user: RequestUser, roomId: string) => {
 	const room = await prisma.room.findFirst({
 		where: { id: roomId, deletedAt: null },

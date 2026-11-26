@@ -6,14 +6,12 @@ import { userPublicSelect } from "../../utils/selects";
 import { uploadUtils } from "../../utils/upload";
 import type { IUpdateProfilePayload } from "./user.interface";
 
-// E07
 const getMyProfile = async (user: RequestUser) => {
 	const profile = await prisma.user.findUnique({ where: { id: user.userId }, select: userPublicSelect });
 	if (!profile) throw new AppError(httpStatus.NOT_FOUND, "User Not Found");
 	return profile;
 };
 
-// E08
 const updateMyProfile = async (user: RequestUser, payload: IUpdateProfilePayload) => {
 	return prisma.user.update({
 		where: { id: user.userId },
@@ -22,7 +20,7 @@ const updateMyProfile = async (user: RequestUser, payload: IUpdateProfilePayload
 	});
 };
 
-// E09 — BR-10: the old image is deleted only after the new one is saved
+// the old image is only deleted after the new one is saved
 const updateMyAvatar = async (user: RequestUser, file?: Express.Multer.File) => {
 	if (!file) {
 		throw new AppError(httpStatus.BAD_REQUEST, "Avatar Image Is Required", [

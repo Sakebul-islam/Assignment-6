@@ -8,7 +8,7 @@ model Room {
   capacity         Int
   occupiedSeats    Int              @default(0)
   reservedSeats    Int              @default(0)
-  availableSeats   Int // set to capacity on create; occupied + reserved + available = capacity
+  availableSeats   Int // occupied + reserved + available always equals capacity
   genderPreference GenderPreference @default(ANY)
   availableFrom    DateTime         @db.Date
   deletedAt        DateTime?
@@ -33,7 +33,7 @@ model RoomImage {
   url       String
   publicId  String
   createdAt DateTime  @default(now())
-  deletedAt DateTime? // soft delete: removed images keep their row (and Cloudinary file)
+  deletedAt DateTime? // soft delete
 
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
 

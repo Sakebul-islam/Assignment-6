@@ -9,7 +9,7 @@ type TAuditEntry = {
 	after?: Prisma.InputJsonValue;
 };
 
-// Always called with the transaction client, so the log is saved together with the change
+// always called with the transaction client so the log commits with the change
 const write = (tx: Prisma.TransactionClient, entry: TAuditEntry) => {
 	return tx.auditLog.create({
 		data: {

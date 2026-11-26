@@ -1,4 +1,4 @@
-// Demo data for evaluation (PROJECT_PLAN.md Part 20). Run with: bun run seed
+// Demo data. Run with: bun run seed
 // Safe to run more than once: users are upserted by email, everything else by fixed id.
 import bcrypt from "bcryptjs";
 import type { Prisma } from "../../generated/prisma/client";
@@ -437,7 +437,7 @@ const main = async () => {
 				});
 			}
 
-			// For the video: the demo owner approves this one live
+			// left pending so the demo owner can approve it live
 			await tx.application.create({
 				data: {
 					id: seedId(4, 10),
@@ -448,7 +448,7 @@ const main = async () => {
 				},
 			});
 
-			// Approved, but the reservation has already passed: released automatically when read (BR-31)
+			// approved, but the reservation has already passed, so it expires the next time it's read
 			await tx.application.create({
 				data: {
 					id: seedId(4, 11),

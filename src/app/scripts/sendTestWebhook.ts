@@ -1,4 +1,4 @@
-// Sends a signed checkout.session.completed event to the local webhook (PROJECT_PLAN.md §19.5).
+// Sends a signed checkout.session.completed event to the local webhook.
 // Run it twice: the second run must change nothing.
 //
 // Usage (the API must be running):

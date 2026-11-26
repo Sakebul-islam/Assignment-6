@@ -21,12 +21,12 @@ const envSchema = z.object({
 	CLOUDINARY_CLOUD_NAME: z.string().min(1, "CLOUDINARY_CLOUD_NAME is required"),
 	CLOUDINARY_API_KEY: z.string().min(1, "CLOUDINARY_API_KEY is required"),
 	CLOUDINARY_API_SECRET: z.string().min(1, "CLOUDINARY_API_SECRET is required"),
-	// sk_ = standard secret key, rk_ = restricted secret key (Stripe's recommended, least-privilege option)
+	// standard (sk_) or restricted (rk_) key
 	STRIPE_SECRET_KEY: z.string().regex(/^(sk|rk)_(test|live)_/, "STRIPE_SECRET_KEY must start with sk_ or rk_"),
 	STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_", "STRIPE_WEBHOOK_SECRET must start with whsec_"),
 	STRIPE_CURRENCY: z.string().length(3).default("bdt"),
 	RESERVATION_HOURS: z.coerce.number().int().min(1).max(168).default(48),
-	// Requests per 15 minutes per IP. Keep the defaults in production; raise only for local test runs.
+	// requests per 15 min per IP, only raise these for local test runs
 	RATE_LIMIT_API_MAX: z.coerce.number().int().min(1).default(300),
 	RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(10),
 	SEED_ADMIN_EMAIL: z.email().default("admin@roommatehub.com"),

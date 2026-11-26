@@ -8,7 +8,7 @@ const main = async () => {
 		await prisma.$connect();
 		console.log("Connected to the database successfully.");
 
-		await redisReady; // lib/redis.ts opens the connection once (skipped when REDIS_URL is empty)
+		await redisReady; // no-op when REDIS_URL isn't set
 
 		app.listen(config.port, () => {
 			console.log(`Server is running on port ${config.port}`);
@@ -20,7 +20,7 @@ const main = async () => {
 	}
 };
 
-// Vercel sets VERCEL=1: there the exported app handles each request and no server is started
+// on Vercel the exported app handles requests, so don't start a server
 if (!process.env.VERCEL) {
 	main();
 }

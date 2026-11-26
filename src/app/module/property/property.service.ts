@@ -27,7 +27,7 @@ const propertyDetailInclude = {
 
 type TPropertyWithDetail = Prisma.PropertyGetPayload<{ include: typeof propertyDetailInclude }>;
 
-// PropertyDetail shape (PROJECT_PLAN.md §8.1). Status fields only for the owner and admins.
+// status fields are only returned to the owner and admins
 const toPropertyDetail = (property: TPropertyWithDetail, includePrivate: boolean) => {
 	const rooms = property.rooms.map(withThumbnail);
 	return {
@@ -61,7 +61,6 @@ const toPropertyDetail = (property: TPropertyWithDetail, includePrivate: boolean
 const loadPropertyDetail = (propertyId: string) =>
 	prisma.property.findFirst({ where: { id: propertyId, deletedAt: null }, include: propertyDetailInclude });
 
-// E10
 const createProperty = async (
 	user: RequestUser,
 	payload: ICreatePropertyPayload,
@@ -95,7 +94,6 @@ const createProperty = async (
 	}
 };
 
-// E11
 const getAllProperties = async (query: IPropertyListQuery) => {
 	const cacheKey = await cacheUtils.listingsKey("properties", query);
 
@@ -148,7 +146,6 @@ const getAllProperties = async (query: IPropertyListQuery) => {
 	});
 };
 
-// E12
 const getMyProperties = async (user: RequestUser, query: IMyPropertiesQuery) => {
 	const where: Prisma.PropertyWhereInput = {
 		ownerId: user.userId,
@@ -197,7 +194,7 @@ const getMyProperties = async (user: RequestUser, query: IMyPropertiesQuery) => 
 	return { data, meta: queryBuilder.meta(query, total) };
 };
 
-// E13 — public sees APPROVED only; the owner and admins see every status
+// public sees approved listings only, the owner and admins see any status
 const getPropertyById = async (propertyId: string, user?: RequestUser) => {
 	const isPrivileged = Boolean(user && user.role !== "TENANT");
 
@@ -218,7 +215,6 @@ const getPropertyById = async (propertyId: string, user?: RequestUser) => {
 	return toPropertyDetail(property, Boolean(canSeePrivate));
 };
 
-// E14 — BR-12, BR-13
 const updateProperty = async (
 	user: RequestUser,
 	propertyId: string,
@@ -251,7 +247,7 @@ const updateProperty = async (
 				throw new AppError(httpStatus.BAD_REQUEST, `A Property Can Have At Most ${MAX_IMAGES} Images`);
 			}
 
-			// BR-12: changing where or what the property is needs a new admin review
+			// changing the title or location sends an approved listing back to review
 			const keyFieldChanged = (["title", "address", "city", "area"] as const).some(
 				(key) => fields[key] !== undefined && fields[key] !== property[key],
 			);
@@ -260,7 +256,7 @@ const updateProperty = async (
 			if (property.status === "REJECTED" && hasChanges) nextStatus = "PENDING";
 			if (property.status === "APPROVED" && keyFieldChanged) nextStatus = "PENDING";
 
-			// Soft delete: the row and the Cloudinary file stay, only hidden from every response
+			// soft delete, the Cloudinary file is kept
 			if (toRemove.length) {
 				await tx.propertyImage.updateMany({
 					where: { id: { in: toRemove.map((image) => image.id) }, deletedAt: null },
@@ -305,7 +301,6 @@ const updateProperty = async (
 	}
 };
 
-// E15 — BR-14
 const deleteProperty = async (user: RequestUser, propertyId: string) => {
 	const property = await prisma.property.findFirst({
 		where: { id: propertyId, deletedAt: null },
@@ -322,7 +317,7 @@ const deleteProperty = async (user: RequestUser, propertyId: string) => {
 	const deletedAt = new Date();
 
 	await prisma.$transaction(async (tx) => {
-		// Guarded: only rooms without tenants or reserved seats can be removed
+		// guarded: only rooms with no tenants or reserved seats are removed
 		const removed = await tx.room.updateMany({
 			where: { propertyId, deletedAt: null, occupiedSeats: 0, reservedSeats: 0 },
 			data: { deletedAt },

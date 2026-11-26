@@ -38,7 +38,7 @@ router.delete(
 	RoomController.deleteRoom,
 );
 
-// E21: a tenant applies for a seat in a room
+// tenants apply from the room
 router.post(
 	"/:roomId/applications",
 	auth(Role.TENANT),

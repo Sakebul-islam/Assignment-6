@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { genderField, phoneField } from "../../utils/commonValidation";
 
-// BR-09: only these fields can be changed through the profile
+// email and role can't be changed through the profile
 export const UpdateProfileValidationZodSchema = z
 	.object({
 		name: z
@@ -16,6 +16,6 @@ export const UpdateProfileValidationZodSchema = z
 	.strict()
 	.refine((value) => Object.keys(value).length > 0, { message: "Provide At Least One Field To Update" });
 
-// E09 — multipart/form-data with the image in the "avatar" file field and no other fields.
-// Multer checks the file type and size; the service returns 400 when the file is missing.
+// multipart with only the "avatar" file field. Multer checks type and size,
+// the service returns 400 if the file is missing.
 export const UpdateAvatarValidationZodSchema = z.object({}).strict();

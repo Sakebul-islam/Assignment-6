@@ -56,7 +56,7 @@ router.delete(
 	PropertyController.deleteProperty,
 );
 
-// E16: rooms are created inside a property
+// rooms are created under their property
 router.post(
 	"/:propertyId/rooms",
 	auth(Role.OWNER),

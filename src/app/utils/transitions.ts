@@ -1,7 +1,7 @@
 import httpStatus from "http-status";
 import { AppError } from "./AppError";
 
-// Allowed status changes (PROJECT_PLAN.md Part 6). Anything else is a 409.
+// allowed status changes, anything else is a 409
 const allowedTransitions: Record<string, Record<string, string[]>> = {
 	Property: {
 		PENDING: ["APPROVED", "REJECTED"],

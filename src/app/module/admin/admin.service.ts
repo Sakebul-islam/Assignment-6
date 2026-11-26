@@ -19,7 +19,6 @@ import type {
 	IVerifyPropertyPayload,
 } from "./admin.interface";
 
-// E36
 const getUsers = async (query: IAdminUserListQuery) => {
 	const where: Prisma.UserWhereInput = {
 		...(query.role && { role: query.role }),
@@ -54,7 +53,6 @@ const findTarget = async (userId: string) => {
 	return target;
 };
 
-// E37 — BR-05, BR-47
 const updateUserStatus = async (admin: RequestUser, userId: string, payload: IUpdateUserStatusPayload) => {
 	if (userId === admin.userId) throw new AppError(httpStatus.BAD_REQUEST, "You Cannot Change Your Own Status");
 
@@ -86,7 +84,6 @@ const updateUserStatus = async (admin: RequestUser, userId: string, payload: IUp
 	});
 };
 
-// E38 — BR-46
 const updateUserRole = async (admin: RequestUser, userId: string, payload: IUpdateUserRolePayload) => {
 	if (userId === admin.userId) throw new AppError(httpStatus.BAD_REQUEST, "You Cannot Change Your Own Role");
 
@@ -136,7 +133,6 @@ const updateUserRole = async (admin: RequestUser, userId: string, payload: IUpda
 	});
 };
 
-// E39
 const getProperties = async (query: IAdminPropertyListQuery) => {
 	const where: Prisma.PropertyWhereInput = {
 		deletedAt: null,
@@ -179,7 +175,6 @@ const getProperties = async (query: IAdminPropertyListQuery) => {
 	return { data, meta: queryBuilder.meta(query, total) };
 };
 
-// E40 — BR-45
 const verifyProperty = async (admin: RequestUser, propertyId: string, payload: IVerifyPropertyPayload) => {
 	const nextStatus = payload.decision === "APPROVE" ? "APPROVED" : "REJECTED";
 
@@ -220,7 +215,6 @@ const verifyProperty = async (admin: RequestUser, propertyId: string, payload: I
 const countBy = <T extends string>(groups: { key: T; count: number }[]) =>
 	Object.fromEntries(groups.map((group) => [group.key, group.count])) as Record<T, number>;
 
-// E41
 const getDashboardStats = async () => {
 	return cacheUtils.remember(cacheUtils.keys.adminStats(), 120, async () => {
 		const monthStart = dateUtils.startOfMonth(dateUtils.today());
@@ -299,7 +293,6 @@ const getDashboardStats = async () => {
 	});
 };
 
-// E42
 const getAuditLogs = async (query: IAuditLogQuery) => {
 	const where: Prisma.AuditLogWhereInput = {
 		...(query.entity && { entity: query.entity }),

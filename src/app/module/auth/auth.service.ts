@@ -21,7 +21,6 @@ const INVALID_LOGIN = "Invalid Email Or Password";
 
 const tokenUserSelect = { ...userPublicSelect, tokenVersion: true } as const;
 
-// E01
 const register = async (payload: IRegisterPayload) => {
 	const hashedPassword = await bcrypt.hash(payload.password, config.bcrypt_salt_rounds);
 
@@ -59,7 +58,7 @@ const register = async (payload: IRegisterPayload) => {
 	}
 };
 
-// E02 — BR-04: every failure gives the same message, so emails cannot be discovered
+// same message for every failure so emails can't be enumerated
 const login = async (payload: ILoginPayload) => {
 	const found = await prisma.user.findUnique({
 		where: { email: payload.email },
@@ -84,7 +83,6 @@ const login = async (payload: ILoginPayload) => {
 	return { user, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
 };
 
-// E03 — BR-06
 const googleLogin = async (payload: IGoogleLoginPayload) => {
 	let googleUser: { sub: string; email: string; name?: string; picture?: string; emailVerified: boolean };
 
@@ -157,7 +155,7 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 	return result;
 };
 
-// E04 — BR-07: rotation with reuse detection
+// refresh token rotation with reuse detection
 const refreshToken = async (payload: IRefreshTokenPayload) => {
 	const stored = await prisma.refreshToken.findUnique({
 		where: { tokenHash: tokenUtils.hashToken(payload.refreshToken) },
@@ -169,7 +167,7 @@ const refreshToken = async (payload: IRefreshTokenPayload) => {
 	}
 
 	if (stored.revokedAt) {
-		// A revoked token was used again: someone may have copied it, so end every session
+		// a revoked token came back, it may have been stolen, so end every session
 		await prisma.$transaction(async (tx) => {
 			await tokenUtils.revokeAllForUser(tx, stored.userId);
 			await tx.user.update({ where: { id: stored.userId }, data: { tokenVersion: { increment: 1 } } });
@@ -200,7 +198,7 @@ const refreshToken = async (payload: IRefreshTokenPayload) => {
 	});
 };
 
-// E05 — always the same answer (reveals nothing about the token)
+// always the same answer, doesn't reveal whether the token existed
 const logout = async (payload: IRefreshTokenPayload) => {
 	await prisma.refreshToken.updateMany({
 		where: { tokenHash: tokenUtils.hashToken(payload.refreshToken), revokedAt: null },
@@ -209,7 +207,6 @@ const logout = async (payload: IRefreshTokenPayload) => {
 	return null;
 };
 
-// E06 — BR-08
 const changePassword = async (requestUser: RequestUser, payload: IChangePasswordPayload) => {
 	const found = await prisma.user.findUnique({
 		where: { id: requestUser.userId },

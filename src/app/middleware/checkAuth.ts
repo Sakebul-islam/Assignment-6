@@ -19,8 +19,7 @@ const getBearerToken = (req: Request) => {
 	return header?.startsWith("Bearer ") ? header.slice(7).trim() : undefined;
 };
 
-// The user is always loaded by id from the database, so blocking a user, changing a role
-// or changing a password (tokenVersion) takes effect immediately.
+// Load the user on every request so a block, role change or password change applies right away
 const loadUser = async (token: string): Promise<RequestUser> => {
 	const verified = jwtUtils.verifyToken(token, config.jwt_access_secret);
 	if (!verified.success) {
@@ -40,7 +39,7 @@ const loadUser = async (token: string): Promise<RequestUser> => {
 	if (!user) {
 		throw new AppError(httpStatus.UNAUTHORIZED, "Invalid Or Expired Token");
 	}
-	// Checked before the token version, so a blocked user always sees why access is refused
+	// check status before tokenVersion so a blocked user gets a clear 403
 	if (user.status === "BLOCKED") {
 		throw new AppError(httpStatus.FORBIDDEN, "Your Account Is Blocked");
 	}
@@ -71,7 +70,7 @@ export const auth = (...requiredRoles: Role[]) => {
 	});
 };
 
-// Public routes that show more to the owner or an admin (property and room details)
+// for public routes that return extra fields to the owner or an admin
 export const optionalAuth = () => {
 	return catchAsync(async (req: Request, res: Response, next: NextFunction) => {
 		const token = getBearerToken(req);

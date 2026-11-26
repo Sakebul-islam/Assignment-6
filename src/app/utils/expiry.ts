@@ -15,7 +15,7 @@ const scopeToWhere = (scope: TScope): Prisma.ApplicationWhereInput => ({
 	...(scope.ownerId && { room: { property: { ownerId: scope.ownerId } } }),
 });
 
-// BR-31: APPROVED applications whose reservation time has passed become EXPIRED and release their seat.
+// Approved applications past their reservation time become EXPIRED and give the seat back
 const releaseExpiredReservations = async (tx: Prisma.TransactionClient, scope: TScope) => {
 	const expired = await tx.application.findMany({
 		where: { status: "APPROVED", reservedUntil: { lt: new Date() }, ...scopeToWhere(scope) },

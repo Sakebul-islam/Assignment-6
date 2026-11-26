@@ -21,10 +21,10 @@ router.post(
 	PaymentController.createCheckout,
 );
 
-// Raw body (set in app.ts) + Stripe signature; no login
+// called by Stripe, verified with the signature instead of a login
 router.post("/webhook", PaymentController.handleWebhook);
 
-// Stripe redirects the browser here after paying or cancelling
+// Stripe redirects here after checkout
 router.get(
 	"/success",
 	validateRequest({ query: StripeSessionQueryValidationZodSchema }),

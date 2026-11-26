@@ -4,7 +4,7 @@ import { AppError } from "../utils/AppError";
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-// Memory storage only: serverless functions cannot keep files on disk (deployment guide).
+// memory storage, files go straight to Cloudinary
 const imageUpload = (maxFileSizeMb: number, maxFiles: number) =>
 	multer({
 		storage: multer.memoryStorage(),

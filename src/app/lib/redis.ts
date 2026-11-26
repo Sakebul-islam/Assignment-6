@@ -1,14 +1,12 @@
 import { createClient } from "redis";
 import config from "../config";
 
-// Redis is used for caching and rate limiting. When REDIS_URL is empty (local development
-// without Redis), the cache is skipped and the rate limiter keeps its counters in memory.
+// Optional. Without REDIS_URL the cache is skipped and rate limits are kept in memory.
 export const redisClient = config.redis_url ? createClient({ url: config.redis_url }) : null;
 
 redisClient?.on("error", (error: Error) => console.warn("Redis error:", error.message));
 
-// Opened once per process (or serverless instance). Never rejects, so a Redis outage
-// never stops the API from starting.
+// Connect once. Never rejects, so a Redis outage can't stop the server from starting.
 export const redisReady: Promise<void> = redisClient
 	? redisClient
 			.connect()

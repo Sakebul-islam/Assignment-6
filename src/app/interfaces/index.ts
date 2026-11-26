@@ -10,7 +10,7 @@ export type TMeta = {
 	totalPages: number;
 };
 
-// Common list query after validation (see utils/queryBuilder.ts)
+// list query after validation
 export interface IQuery {
 	page: number;
 	limit: number;
@@ -19,8 +19,7 @@ export interface IQuery {
 	searchTerm?: string;
 }
 
-// Values parsed by validateRequest. Each route's Zod schema decides the real shape;
-// controllers pass them to services, which use the inferred payload types.
+// Set by validateRequest once the route's zod schemas pass
 export type TValidated = {
 	// biome-ignore lint/suspicious/noExplicitAny: already validated by the route's Zod schema
 	body: any;

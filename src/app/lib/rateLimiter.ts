@@ -16,8 +16,7 @@ const limitReached = (req: Request, res: Response) => {
 	});
 };
 
-// Redis store so every serverless instance shares the same counters (deployment guide:
-// in-memory state is not shared on serverless). Without Redis, the default memory store is used.
+// Redis keeps the counters shared between instances; without it the memory store is used
 const createStore = (prefix: string): Store | undefined => {
 	const client = redisClient;
 	if (!client) return undefined;
@@ -34,7 +33,7 @@ const baseOptions = {
 	windowMs: FIFTEEN_MINUTES,
 	standardHeaders: "draft-8" as const,
 	legacyHeaders: false,
-	passOnStoreError: true, // if Redis fails, requests are still served
+	passOnStoreError: true, // don't block requests if Redis is down
 	handler: limitReached,
 };
 
@@ -51,7 +50,7 @@ export const authRateLimiter = rateLimit({
 	store: createStore("rl:auth:"),
 });
 
-// Runs after auth(), so the key is the logged-in user
+// used after auth(), so it's keyed by user id
 export const checkoutRateLimiter = rateLimit({
 	...baseOptions,
 	limit: 10,

@@ -56,7 +56,7 @@ export const applicationViewSelect = {
 
 type TApplicationView = Prisma.ApplicationGetPayload<{ select: typeof applicationViewSelect }>;
 
-// Contact details follow PROJECT_PLAN.md §4.3
+// Tenants only see the owner's phone and email once they're approved
 const toApplicationView = (application: TApplicationView, viewer: RequestUser) => {
 	const { tenantId, room, tenant, ...rest } = application;
 	const { ownerId, owner, ...property } = room.property;
@@ -78,7 +78,6 @@ const toApplicationView = (application: TApplicationView, viewer: RequestUser) =
 const loadApplicationView = (applicationId: string) =>
 	prisma.application.findUnique({ where: { id: applicationId }, select: applicationViewSelect });
 
-// E21 — BR-22 to BR-27
 const createApplication = async (user: RequestUser, roomId: string, payload: ICreateApplicationPayload) => {
 	await expiryUtils.expireNow({ roomId });
 
@@ -151,7 +150,7 @@ const createApplication = async (user: RequestUser, roomId: string, payload: ICr
 		const view = await loadApplicationView(created.id);
 		return toApplicationView(view!, user);
 	} catch (error) {
-		// The partial unique index catches two identical applications sent at the same moment
+		// the partial unique index catches a double submit
 		if (prismaErrorUtils.isUniqueViolation(error)) {
 			throw new AppError(httpStatus.CONFLICT, "You Already Have An Open Application For This Room");
 		}
@@ -159,7 +158,6 @@ const createApplication = async (user: RequestUser, roomId: string, payload: ICr
 	}
 };
 
-// E22
 const getApplications = async (user: RequestUser, query: IApplicationListQuery) => {
 	const scope: Prisma.ApplicationWhereInput =
 		user.role === "TENANT"
@@ -203,7 +201,6 @@ const getApplications = async (user: RequestUser, query: IApplicationListQuery) 
 const canAccess = (application: TApplicationView, user: RequestUser) =>
 	user.role === "ADMIN" || application.tenantId === user.userId || application.room.property.ownerId === user.userId;
 
-// E23
 const getApplicationById = async (user: RequestUser, applicationId: string) => {
 	await expiryUtils.expireNow({ applicationId });
 	const application = await loadApplicationView(applicationId);
@@ -213,7 +210,6 @@ const getApplicationById = async (user: RequestUser, applicationId: string) => {
 	return toApplicationView(application, user);
 };
 
-// E24 — BR-28, BR-29 (PROJECT_PLAN.md §9.3)
 const decideApplication = async (user: RequestUser, applicationId: string, payload: IApplicationDecisionPayload) => {
 	await expiryUtils.expireNow({ applicationId });
 
@@ -249,13 +245,13 @@ const decideApplication = async (user: RequestUser, applicationId: string, paylo
 		const reservedUntil = dateUtils.addHours(new Date(), config.reservation_hours);
 
 		await prisma.$transaction(async (tx) => {
-			await seatUtils.reserveSeat(tx, room.id); // BR-28: guarded, throws 409 when no seat is free
+			await seatUtils.reserveSeat(tx, room.id); // 409 if the room is already full
 
 			const updated = await tx.application.updateMany({
-				where: { id: applicationId, status: "PENDING" }, // a second decision at the same moment gets 0
+				where: { id: applicationId, status: "PENDING" }, // a concurrent decision updates 0 rows
 				data: {
 					status: "APPROVED",
-					quotedRent: room.monthlyRent, // BR-19: price locked
+					quotedRent: room.monthlyRent, // price is locked from here on
 					quotedDeposit: room.deposit,
 					reservedUntil,
 					decidedAt: new Date(),
@@ -297,8 +293,8 @@ const decideApplication = async (user: RequestUser, applicationId: string, paylo
 	return toApplicationView(view!, user);
 };
 
-// E25 — BR-30. Each status is claimed by its own guarded update, so a seat is released
-// only when the application really was APPROVED at that moment.
+// Each status gets its own guarded update, so the seat is only released
+// if the application was actually APPROVED at that moment.
 const withdrawApplication = async (user: RequestUser, applicationId: string) => {
 	const application = await prisma.application.findFirst({
 		where: { id: applicationId, tenantId: user.userId },

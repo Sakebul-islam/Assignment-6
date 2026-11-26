@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Field rules shared by several modules
+// zod fields shared between modules
 
 export const emailField = z
 	.string("Email Is Required")
@@ -8,7 +8,6 @@ export const emailField = z
 	.toLowerCase()
 	.pipe(z.email("Invalid Email Address").max(254, "Email Is Too Long"));
 
-// BR-03
 export const strongPasswordField = z
 	.string("Password Is Required")
 	.min(8, "Password Must Be At Least 8 Characters")

@@ -743,4 +743,4 @@ Each module folder contains `<feature>.route.ts` (`<Feature>Routes`), `<feature>
 
 ## 👤 Author
 
-**<Sakebul islam>** · Sakebul islam --> Student ID: L2B7-0336 · `https://github.com/sakebul-islam/`
+**<Sakebul islam>** Sakebul islam --> Student ID: L2B7-0336 · `https://github.com/sakebul-islam/`

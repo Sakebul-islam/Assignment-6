@@ -15,7 +15,7 @@ const multerMessages: Record<string, string> = {
 	LIMIT_FIELD_VALUE: "Form Field Too Large",
 };
 
-// PostgreSQL error codes reported by the driver adapter (Prisma code P2039 / P2010)
+// Postgres error codes coming through the pg driver adapter (P2039 / P2010)
 const postgresErrors: Record<string, { statusCode: number; message: string }> = {
 	"23505": { statusCode: httpStatus.CONFLICT, message: "Record Already Exists" },
 	"23514": { statusCode: httpStatus.CONFLICT, message: "Request Conflicts With Current Data, Please Try Again" },
@@ -72,7 +72,7 @@ export const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => 
 			statusCode = httpStatus.CONFLICT;
 			message = "Request Conflicts With Current Data, Please Try Again";
 		} else if (err.code === "P2024" || err.code === "P2028") {
-			// connection pool or transaction timeout: nothing was saved, the client can retry
+			// pool or transaction timeout, nothing was written so it's safe to retry
 			statusCode = httpStatus.SERVICE_UNAVAILABLE;
 			message = "Service Busy, Please Try Again";
 		} else {
@@ -93,7 +93,7 @@ export const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => 
 		message = "Payment Provider Error";
 	}
 
-	// Unexpected errors are logged (visible in Vercel logs); request bodies are never logged
+	// log unexpected errors only, never the request body
 	if (statusCode >= 500) {
 		console.error(`[${req.method} ${req.originalUrl}]`, err);
 	}

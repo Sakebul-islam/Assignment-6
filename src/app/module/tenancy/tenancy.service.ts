@@ -66,7 +66,6 @@ const scopeFor = (user: RequestUser): Prisma.TenancyWhereInput =>
 const canAccess = (tenancy: TTenancyView, user: RequestUser) =>
 	user.role === "ADMIN" || tenancy.tenant.id === user.userId || tenancy.room.property.ownerId === user.userId;
 
-// E32
 const getTenancies = async (user: RequestUser, query: ITenancyListQuery) => {
 	const where: Prisma.TenancyWhereInput = {
 		...scopeFor(user),
@@ -93,7 +92,6 @@ const getTenancies = async (user: RequestUser, query: ITenancyListQuery) => {
 	return { data: tenancies.map(toTenancyView), meta: queryBuilder.meta(query, total) };
 };
 
-// E33
 const getTenancyById = async (user: RequestUser, tenancyId: string) => {
 	const tenancy = await prisma.tenancy.findUnique({ where: { id: tenancyId }, select: tenancyViewSelect });
 	if (!tenancy || !canAccess(tenancy, user)) throw new AppError(httpStatus.NOT_FOUND, "Tenancy Not Found");
@@ -106,7 +104,6 @@ const getTenancyById = async (user: RequestUser, tenancyId: string) => {
 	return { ...toTenancyView(tenancy), moveInPayment };
 };
 
-// E34 — BR-42
 const giveNotice = async (user: RequestUser, tenancyId: string, payload: IGiveNoticePayload) => {
 	const tenancy = await prisma.tenancy.findFirst({
 		where: { id: tenancyId, tenantId: user.userId },
@@ -142,7 +139,6 @@ const giveNotice = async (user: RequestUser, tenancyId: string, payload: IGiveNo
 	return getTenancyById(user, tenancyId);
 };
 
-// E35 — BR-43, BR-44 (PROJECT_PLAN.md §9.5)
 const endTenancy = async (user: RequestUser, tenancyId: string, payload: IEndTenancyPayload) => {
 	const tenancy = await prisma.tenancy.findUnique({ where: { id: tenancyId }, select: tenancyViewSelect });
 	if (!tenancy || !(user.role === "ADMIN" || tenancy.room.property.ownerId === user.userId)) {
@@ -169,7 +165,7 @@ const endTenancy = async (user: RequestUser, tenancyId: string, payload: IEndTen
 		}
 	}
 
-	// BR-44: refund first, outside the transaction. The idempotency key makes a retry safe.
+	// refund first, outside the transaction; the idempotency key makes a retry safe
 	let refundedPaymentId: string | null = null;
 	if (isBeforeStart) {
 		const moveIn = await prisma.payment.findFirst({

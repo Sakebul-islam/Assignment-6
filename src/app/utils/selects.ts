@@ -1,7 +1,6 @@
 import type { Prisma } from "../../generated/prisma/client";
 
-// Response shapes shared by several modules (PROJECT_PLAN.md §8.1).
-// Passwords, token hashes and other secrets are never selected here.
+// Response shapes shared between modules. Never select passwords or token hashes here.
 
 export const userPublicSelect = {
 	id: true,

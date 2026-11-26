@@ -1,4 +1,4 @@
-// Seat and payment consistency check (PROJECT_PLAN.md §19.6). Run with: bun run test:consistency
+// Seat and payment consistency check. Run with: bun run test:consistency
 // Optional: bun run test:consistency --force-violation  (tries to break the seat CHECK constraint on purpose)
 import { prisma } from "../lib/prisma";
 

@@ -17,13 +17,13 @@ import { UserRoutes } from "./app/module/user/user.route";
 
 const app: Application = express();
 
-// Correct client IPs behind Vercel's proxy (used by the rate limiter)
+// real client IPs behind the proxy (rate limiter relies on this)
 app.set("trust proxy", 1);
 
 app.use(helmet());
 app.use(cors({ origin: config.cors_origins }));
 
-// Stripe needs the raw body to verify the signature, so this runs before express.json()
+// Stripe signature check needs the raw body, so keep this above express.json()
 app.use("/api/v1/payments/webhook", express.raw({ type: "application/json", limit: "1mb" }));
 
 app.use(express.json({ limit: "1mb" }));
